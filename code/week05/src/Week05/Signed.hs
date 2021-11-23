@@ -38,9 +38,9 @@ mkPolicy pkh () ctx = txSignedBy (scriptContextTxInfo ctx) pkh
 
 policy :: PubKeyHash -> Scripts.MintingPolicy
 policy pkh = mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| Scripts.wrapMintingPolicy . mkPolicy ||])
-    `PlutusTx.applyCode`
-    (PlutusTx.liftCode pkh)
+    $$(PlutusTx.compile [|| Scripts.wrapMintingPolicy . mkPolicy ||]) --компилируется функция
+    `PlutusTx.applyCode` -- к аругменту применяется функция
+    (PlutusTx.liftCode pkh) --компилируется аргумент для функции
 
 curSymbol :: PubKeyHash -> CurrencySymbol
 curSymbol = scriptCurrencySymbol . policy
@@ -48,14 +48,14 @@ curSymbol = scriptCurrencySymbol . policy
 data MintParams = MintParams
     { mpTokenName :: !TokenName
     , mpAmount    :: !Integer
-    } deriving (Generic, ToJSON, FromJSON, ToSchema)
+    } deriving (Generic, ToJSON, FromJSON, ToSchema) --не надо добавлять пабки, потому что монада контракта позволяет посмотреть свой собственный пабки
 
 type SignedSchema = Endpoint "mint" MintParams
 
 mint :: MintParams -> Contract w SignedSchema Text ()
 mint mp = do
-    pkh <- pubKeyHash <$> Contract.ownPubKey
-    let val     = Value.singleton (curSymbol pkh) (mpTokenName mp) (mpAmount mp)
+    pkh <- pubKeyHash <$> Contract.ownPubKey -- <$> = fmap
+    let val     = Value.singleton (curSymbol pkh) (mpTokenName mp) (mpAmount mp) --проверка и добавление ключа создателя в curSymbol
         lookups = Constraints.mintingPolicy $ policy pkh
         tx      = Constraints.mustMintValue val
     ledgerTx <- submitTxConstraintsWith @Void lookups tx

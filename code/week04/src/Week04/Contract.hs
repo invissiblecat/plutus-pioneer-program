@@ -43,9 +43,9 @@ type MySchema = Endpoint "foo" Int .\/ Endpoint "bar" String
 myContract3 :: Contract () MySchema Text ()
 myContract3 = do
     n <- endpoint @"foo"
-    Contract.logInfo n
     s <- endpoint @"bar"
-    Contract.logInfo s
+    Contract.logInfo s 
+    Contract.logInfo n 
 
 myTrace3 :: EmulatorTrace ()
 myTrace3 = do
@@ -82,3 +82,20 @@ myTrace4 = do
 
 test4 :: IO ()
 test4 = runEmulatorTraceIO myTrace4
+
+type MySchema1 = Endpoint "foo" String .\/ Endpoint "bar" String
+
+myContract5 :: Contract () MySchema1 Text ()
+myContract5 = do
+    n <- endpoint @"foo"
+    s <- endpoint @"bar"
+    Contract.logInfo $ n ++ s
+
+myTrace5 :: EmulatorTrace ()
+myTrace5 = do
+    h <- activateContractWallet (Wallet 1) myContract5
+    callEndpoint @"foo" h "hi "
+    callEndpoint @"bar" h "Haskell"
+
+test5 :: IO ()
+test5 = runEmulatorTraceIO myTrace5

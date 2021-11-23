@@ -50,7 +50,7 @@ mkValidator dat () ctx = traceIfFalse "beneficiary's signature missing" signedBy
     info = scriptContextTxInfo ctx
 
     signedByBeneficiary :: Bool
-    signedByBeneficiary = txSignedBy info $ beneficiary dat
+    signedByBeneficiary = txInfoSignatories info $ beneficiary dat
 
     deadlineReached :: Bool
     deadlineReached = contains (from $ deadline dat) $ txInfoValidRange info
