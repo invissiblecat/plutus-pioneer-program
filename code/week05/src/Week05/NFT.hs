@@ -31,6 +31,7 @@ import           Prelude                (IO, Semigroup (..), Show (..), String)
 import           Text.Printf            (printf)
 import           Wallet.Emulator.Wallet
 
+--on chain - validating transaction
 {-# INLINABLE mkPolicy #-}
 mkPolicy :: TxOutRef -> TokenName -> () -> ScriptContext -> Bool
 mkPolicy oref tn () ctx = traceIfFalse "UTxO not consumed"   hasUTxO           &&
@@ -43,8 +44,10 @@ mkPolicy oref tn () ctx = traceIfFalse "UTxO not consumed"   hasUTxO           &
     hasUTxO = any (\i -> txInInfoOutRef i == oref) $ txInfoInputs info --any cheks if at least one one element in the list satisfies the condition
 
     checkMintedAmount :: Bool
-    checkMintedAmount = case flattenValue (txInfoForge info) of
-        [(cs, tn', amt)] -> cs  == ownCurrencySymbol ctx && tn' == tn && amt == 1
+    checkMintedAmount = case flattenValue (txInfoForge info) of --flatteValue turns nested map to list of triples, txInfo forge - value minted by tx
+        [(cs, tn', amt)] -> cs  == ownCurrencySymbol ctx && tn' == tn && amt == 1 --cs(currencysymbol) wiil be computed from hash pf compiled validator (this func), 
+                                                                                --are currently writing it. how to check is cs right? ownCurrencySymbol func 
+                                                                                --now we can dont check it at all because we know we have exactly one cs minted at the time
         _                -> False
 
 policy :: TxOutRef -> TokenName -> Scripts.MintingPolicy
@@ -58,20 +61,21 @@ policy oref tn = mkMintingPolicyScript $
 curSymbol :: TxOutRef -> TokenName -> CurrencySymbol
 curSymbol oref tn = scriptCurrencySymbol $ policy oref tn
 
+--off chain - constructing transaction
 type NFTSchema = Endpoint "mint" TokenName
 
 mint :: TokenName -> Contract w NFTSchema Text ()
 mint tn = do
-    pk    <- Contract.ownPubKey
-    utxos <- utxoAt (pubKeyAddress pk)
+    pk    <- Contract.ownPubKey --lookup our own pubkey
+    utxos <- utxoAt (pubKeyAddress pk) --find UTxOs on our address, we get list of utxo at our address, take he first one
     case Map.keys utxos of
-        []       -> Contract.logError @String "no utxo found"
-        oref : _ -> do
-            let val     = Value.singleton (curSymbol oref tn) tn 1
-                lookups = Constraints.mintingPolicy (policy oref tn) <> Constraints.unspentOutputs utxos
-                tx      = Constraints.mustMintValue val <> Constraints.mustSpendPubKeyOutput oref
-            ledgerTx <- submitTxConstraintsWith @Void lookups tx
-            void $ awaitTxConfirmed $ txId ledgerTx
+        []       -> Contract.logError @String "no utxo found" --if no utxo found
+        oref : _ -> do --take the first one in the list
+            let val     = Value.singleton (curSymbol oref tn) tn 1 --compute value of (currensySymbol, token name, amount) to forge
+                lookups = Constraints.mintingPolicy (policy oref tn) <> Constraints.unspentOutputs utxos --mintingPolicy provided from above and lookup for UTxOs. take all of them
+                tx      = Constraints.mustMintValue val <> Constraints.mustSpendPubKeyOutput oref --info about transaction. i need to mint val, and picked utxo must be spend
+            ledgerTx <- submitTxConstraintsWith @Void lookups tx --Build a transaction that satisfies the constraints, then submit it to the network
+            void $ awaitTxConfirmed $ txId ledgerTx --wait until confirmed
             Contract.logInfo @String $ printf "forged %s" (show val)
 
 endpoints :: Contract () NFTSchema Text ()
