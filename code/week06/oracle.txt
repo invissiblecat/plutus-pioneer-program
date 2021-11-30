@@ -1,0 +1,7 @@
+Oracle in a blockchain world - service or a weay to get rreal world info onto the blockhain and make it usable in smart contracts.
+
+Utxo will be sitting at oracle address, als oracle has value with provided data (datum).
+Validation only happens when you want to consume something from a script address, not when you produce an output at a script address.
+We can't prevent nobody from producing arbitary outputs at the same oracle script address.
+We need the way to distinguish the true UTxO oracle outut from other UTxOs at the same script address.
+

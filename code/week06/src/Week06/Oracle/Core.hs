@@ -44,39 +44,45 @@ import           Plutus.Contracts.Currency as Currency
 import           Prelude                   (Semigroup (..), Show (..), String)
 import qualified Prelude
 
-data Oracle = Oracle
-    { oSymbol   :: !CurrencySymbol
-    , oOperator :: !PubKeyHash
-    , oFee      :: !Integer
-    , oAsset    :: !AssetClass
+
+--oracle - parameterized contract
+data Oracle = Oracle -- parameter
+    { oSymbol   :: !CurrencySymbol --currency 
+    , oOperator :: !PubKeyHash --admin that can make updates
+    , oFee      :: !Integer --fee to admin in lovalaces
+    , oAsset    :: !AssetClass --target of orecle, representing usdt
     } deriving (Show, Generic, FromJSON, ToJSON, Prelude.Eq, Prelude.Ord)
 
 PlutusTx.makeLift ''Oracle
 
-data OracleRedeemer = Update | Use
+data OracleRedeemer = Update | Use --redeemer with operations
     deriving Show
 
-PlutusTx.unstableMakeIsData ''OracleRedeemer
+PlutusTx.unstableMakeIsData ''OracleRedeemer 
 
+
+--helper definitions
 {-# INLINABLE oracleTokenName #-}
 oracleTokenName :: TokenName
-oracleTokenName = TokenName emptyByteString
+oracleTokenName = TokenName emptyByteString --name is empty string
 
 {-# INLINABLE oracleAsset #-}
-oracleAsset :: Oracle -> AssetClass
+oracleAsset :: Oracle -> AssetClass --asset of the NFT to identify the utxo
 oracleAsset oracle = AssetClass (oSymbol oracle, oracleTokenName)
 
-{-# INLINABLE oracleValue #-}
+{-# INLINABLE oracleValue #-} --txout willl be the output of utxoi that holds the oracle (its datum has our value we want to get)
 oracleValue :: TxOut -> (DatumHash -> Maybe Datum) -> Maybe Integer
 oracleValue o f = do
-    dh      <- txOutDatum o
-    Datum d <- f dh
-    PlutusTx.fromBuiltinData d
+    dh      <- txOutDatum o --take datumhash from txout and call it dh
+    Datum d <- f dh --applying provided function f(datumhash -> maybe datum) to dh, we get datum, and call it d 
+    PlutusTx.fromBuiltinData d --convert datum to maybe integer
 
-{-# INLINABLE mkOracleValidator #-}
-mkOracleValidator :: Oracle -> Integer -> OracleRedeemer -> ScriptContext -> Bool
-mkOracleValidator oracle x r ctx =
-    traceIfFalse "token missing from input"  inputHasToken  &&
+
+--the most important part
+{-# INLINABLE mkOracleValidator #-} 
+mkOracleValidator :: Oracle -> Integer -> OracleRedeemer -> ScriptContext -> Bool --gets parameter - datatype oracle, datum - exchange rate, redeemer - oracle redeemer datatype, context, result is boolen - validate or not 
+mkOracleValidator oracle x r ctx = --checks equal for use and update
+    traceIfFalse "token missing from input"  inputHasToken  && --check if input and output hold an nft
     traceIfFalse "token missing from output" outputHasToken &&
     case r of
         Update -> traceIfFalse "operator signature missing" (txSignedBy info $ oOperator oracle) &&
@@ -84,7 +90,7 @@ mkOracleValidator oracle x r ctx =
         Use    -> traceIfFalse "oracle value changed"       (outputDatum == Just x)              &&
                   traceIfFalse "fees not paid"              feesPaid
   where
-    info :: TxInfo
+    info :: TxInfo --info of current tx
     info = scriptContextTxInfo ctx
 
     ownInput :: TxOut

@@ -35,6 +35,27 @@ import           Prelude              (Semigroup (..), Show (..), String, (<$>))
 import           Week06.Oracle.Core
 import           Week06.Oracle.Funds
 
+{-
+Contract for exchange ADA-USD(represented by native token). Oracle value is current exchange rate.
+For oracle, we also need an incentive (incoming fee). If not, the oracle provider will need to pay fees to create transaction.
+Instead of it, the oracle provider determines a fee which has to be oaid each time the oracle is used.
+
+1. Swap validation logic needs access to the current oracle. Oracle UtxO with value of exchange rate should be input for swap contract (swap validator
+has access to it).
+2. Oracle validation logic. We want to use the oracle, so we have the redeemer called use. Oracle alidator checks:
+  / check NFT in input
+  / check the output transaction with NFT and value (datum)
+  / check fee to the provider
+3. Complete the transaction: oracle utxo, swap output and price paid by the buyer are inputs; 
+                             usd to seller, ada to buyer, fees with NFT and value to oracle are outputs;
+Usd and ada checks is responsibility of swap contract.
+
+To update the value that oracle contains we need to consumw an old utxo with old value and provide new utxo with new value.
+Transaction with change has to be signed by the oracle provider so not everyone can change the value. This tx in opportunity to transfer fees.
+
+We identify correct oracle utxo with NFT.
+-}
+
 {-# INLINABLE price #-}
 price :: Integer -> Integer -> Integer
 price lovelace exchangeRate = (lovelace * exchangeRate) `divide` 1000000
